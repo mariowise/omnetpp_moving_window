@@ -23,9 +23,11 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 	Window = new vector<Frame*>();		// Se construye la ventana para comenzar recepción|envío
 	FramePointer = 0;					// Se inicializa como puntero a la posición cero
 	HowToWaitCount = HowToWait;			// Inicialmente no he enviado nada
+	FrameCounter = 1;
 
 	if(role.compare("emisor") == 0) {
 		// Se realiza la población de la ventana hasta WindowLength o lo que haya en MessageQueue
+		FrameCount = (int) MessageQueue->size();
 		int i;
 		for(i = 0; i < (int) MessageQueue->size() && i < WindowLength; i++) {
 			Window->push_back(new Frame(
@@ -33,7 +35,7 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 				i2s(0),						// Dirección del receptor
 				new Control(				// Control
 					"Informacion",				// Trama de información
-					i2s(FrameCount),			// El total de tramas que envio
+					i2s(0),						// El total de tramas que envio
 					false,						// No es la ultima trama
 					i2s((int) Window->size())	// El numero de trama en la ventana (0..WindowLength)
 				),
@@ -41,7 +43,7 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 			));
 			MessageQueue->pop();		// Lo quito de la cola de Message
 		}
-		cout << "MovingWindow::MovingWindow(...) he agregado " << i << "/" << WindowLength << " elementos a la ventana" << endl;
+		cout << "Terminal" << s2i(host) << ": MovingWindow::MovingWindow(...) he agregado " << i << "/" << WindowLength << " elementos a la ventana de un total de " << FrameCount << endl;
 		state = "espera";				// Seteo el estado como en espera
 	}
 	else if(role.compare("receptor") == 0) {
@@ -105,6 +107,58 @@ void MovingWindow::broker(Frame * frame) {
 			} else if(state.compare("espera") == 0) // Me toca conectarme
 				begin();
 		}
+	} else if(frame->ctrl->type.compare("Informacion") == 0) {
+		// Estoy recibiendo una trama de información
+		int nroTrama = s2i(frame->ctrl->dataB);
+		cout << "Terminal" << s2i(host) << " recibe mensaje tipo 'Informacion' nroTrama=" << nroTrama << " SpectedFrame=" << SpectedFrame << endl;
+		if(nroTrama == SpectedFrame) {
+			// Si recibo lo que estoy esperando no hay problemas
+			HowToWaitCount--;
+			SpectedFrame = (SpectedFrame + 1) % 4;
+
+			// Si ya recibi toda la ventana
+			if(HowToWaitCount == 0) {
+				// Si ya recibí todas las tramas del lote. Debo reiniciar los contadores
+				// y enviar el ACK de trama
+				HowToWaitCount = HowToWait;
+				sendACK(frame->address, nroTrama);
+				module->getParentModule()->bubble("Enviando ACK");
+			}
+		}
+	} else if(frame->ctrl->type.compare("Supervisora") == 0) {
+		// Estoy recibiendo una trama supervisora
+		int type = s2i(frame->ctrl->dataA);
+		int nro = s2i(frame->ctrl->dataB);
+		if(type == 1) { // Se trata de un ACK
+			// Es necesario reemplazar todos los elementos distintos del ACK hasta encontrar la trama que 
+			// fue indicada como ACK, luego esa trama tambien hay que reemplazarla.
+			int i, j;
+			for(i = 0; i < FramePointer; i++) {
+				j = s2i(Window->at(i)->ctrl->dataB);
+				free((*Window)[i]);	// Se libera el puntero al que apunta la posición del vector
+				(*Window)[i] = new Frame(
+					host,						// Dirección del emisor
+					i2s(0),						// Dirección del receptor
+					new Control(				// Control
+						"Informacion",				// Trama de información
+						i2s(0),						// El total de tramas que envio
+						(MessageQueue->size() == 1) ? true : false,	// No es la ultima trama
+						i2s(i)						// El numero de trama en la ventana (0..WindowLength)
+					),
+					MessageQueue->front()		// Data
+				);
+				MessageQueue->pop();		// Lo quito de la cola de Message
+				if(nro == j) // Si es la trama que me hacen ACK
+					break; // No itero mas
+			}
+			ev << endl << "Terminal" << s2i(host) << ": ha recibido un ACK-" << nro << " con FramePointer=" << FramePointer << endl << endl;
+
+			// Si el nro del ACK que ha llegado es igual a FramePointer-1 entonces el lote ha sido recibido
+			// de forma satisfactoria. Por lo tanto es necesario pasar el token al siguiente terminal.
+			ev << endl << "Terminal" << s2i(host) << ": Pasando el token al siguiente" << endl << endl;
+			HowToWaitCount = HowToWait;
+			releaseToken();
+		}
 	}
 }
 
@@ -112,21 +166,22 @@ void MovingWindow::resume() {
 	// A estas alturas se tiene HowToWaitCount como el número de tramas que 
 	// aun queda por enviar por lo tanto se realizará el envio de esa cantidad
 	// de tramas. Pero no se deben enviar mas de module->TokenWait tramas
-	cout << "Resumiendo envio en Terminal" << s2i(host) << "con HowToWaitCount=" << HowToWaitCount << " y Window->size()=" << (int)Window->size() << endl;
+	cout << "Resumiendo envio en Terminal" << s2i(host) << " con HowToWaitCount=" << HowToWaitCount << " y Window->size()=" << (int) Window->size() << endl;
 	state = "enviando";
-	while(HowToWaitCount > 0) {
+	while(HowToWaitCount > 0 && FrameCounter <= FrameCount) {
+		cout << "Terminal" << s2i(host) << ": enviando trama nro. " << FrameCounter << endl;
+
 		// Envío de la trama al medio
-		module->send(new cMessage(Window->at(FramePointer)->get().c_str(), 0), "to_net");
+		// module->send(new cMessage(Window->at(FramePointer)->get().c_str(), 0), "to_net");
+		module->scheduleAt(simTime(), new cMessage(Window->at(FramePointer)->get().c_str(), 0));
 
 		// Se alteran los elementos de control
 		HowToWaitCount--;
-		FramePointer++;
+		FramePointer = (FramePointer + 1) % WindowLength;
+		FrameCounter++;
 	}
+	module->getParentModule()->bubble("Enviando Lote");
 	state = "bloqueado";
-}
-
-void MovingWindow::resume(Frame * frame) {
-
 }
 
 void MovingWindow::releaseToken() {
@@ -135,7 +190,7 @@ void MovingWindow::releaseToken() {
 	// una trama No-numerada.
 	cout << "Terminal" << s2i(host) << " pasando el token al siguiente" << endl;
 	Frame frame (
-		host, 					// Origen
+		i2s(0),					// Se falsifica el origen como proveniente de Terminal0
 		i2s((s2i(host))%4+1),	// Destino
 		new Control(
 			"No-numerada",	// Tipo de trama
@@ -146,4 +201,20 @@ void MovingWindow::releaseToken() {
 		"0"						// Chunk
 	);
 	module->send(new cMessage(frame.get().c_str(), 0), "to_net"); // Paso token
+}
+
+void MovingWindow::sendACK(string to, int nro) {
+	// Debo enviar un ACK como trama Supervisora indicando el número de ACK
+	Frame super (
+		host,		// Origen
+		to,			// Destino
+		new Control(
+			"Supervisora",	// Tipo
+			i2s(1),			// 1. ACK de trama
+			false,			// PollFinal
+			i2s(nro)		// Número de trama que estoy acentiendo
+		),
+		"0"			// Chunk
+	);
+	module->send(new cMessage(super.get().c_str(), 0), "to_net");
 }

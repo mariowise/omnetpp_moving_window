@@ -44,6 +44,7 @@ class MovingWindow {
 		int PieceLength;			// Largo del los pedacitos en que se corte el mensaje
 		int WindowLength;			// Largo de la ventana deslizante
 		int HowToWait;				// Cuantas tramas esperar antes de bloquearse
+		int FrameCounter;	
 
 		int HowToWaitCount;			// Lleve el registro de cuantos ya he enviado en esta espera
 
@@ -53,6 +54,11 @@ class MovingWindow {
 		cSimpleModule * module;		// Puntero al módulo para enviar los mensajes
 
 		void releaseToken();		// Envia el token a la siguiente estación
+		void sendACK(				// Envía un ACK a un host dado
+			string to,					// Destino 
+			int nro					// Número de ACK
+		);
+		void replace(int pos);		// Llena espacios de la ventana con elementos del messageQueue
 
 	public:
 		queue<string> * MessageQueue;	// Cola de pedazos de mensaje a enviar

@@ -106,5 +106,7 @@ void Link::handleMessage(cMessage * msg) {
             if(address.compare(i2s(1)) == 0)
                 (*WindowMap)[i2s(0)]->begin();
         }
+    } else { // Auto-message
+        send(msg, "to_net");
     }
 }

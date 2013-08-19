@@ -37,6 +37,8 @@ class MovingWindow {
 		vector<Frame*> * Window;		// Lista de tramas en la ventana deslizante
 
 		int FrameCount;				// Total de tramas
+		int FrameCounter;			// Contador de las tramas que van siendo enviadas	
+		int FramePushCounter;		// Contador de las tramas que van siendo encoladas para envío
 		int SpectedFrame;			// Trama que estoy esperando
 		int FramePointer;			// Cabezal sobre el vector Window
 		int TokenLimit;				// Cuantas tramas enviar antes de ceder el token
@@ -44,7 +46,6 @@ class MovingWindow {
 		int PieceLength;			// Largo del los pedacitos en que se corte el mensaje
 		int WindowLength;			// Largo de la ventana deslizante
 		int HowToWait;				// Cuantas tramas esperar antes de bloquearse
-		int FrameCounter;	
 
 		int HowToWaitCount;			// Lleve el registro de cuantos ya he enviado en esta espera
 
@@ -56,9 +57,14 @@ class MovingWindow {
 		void releaseToken();		// Envia el token a la siguiente estación
 		void sendACK(				// Envía un ACK a un host dado
 			string to,					// Destino 
-			int nro					// Número de ACK
+			int nro						// Número de ACK
+		);
+		void sendNACK(				// Envia un NACK a un host dado
+			string to,					// Destino
+			int nro 					// Número del NACK
 		);
 		void replace(int pos);		// Llena espacios de la ventana con elementos del messageQueue
+		bool acquire(Frame * frame);// Adquiere la trama que esta llegando, aplica CRC y decide
 
 	public:
 		queue<string> * MessageQueue;	// Cola de pedazos de mensaje a enviar
@@ -76,8 +82,6 @@ class MovingWindow {
 		void broker(Frame * frame);	// Decide que es lo que hay que hacer al recibir un stream de bits
 		void begin();				// Comienza el envio de la petición asumiendo que tiene el token
 		void resume();				// Retoma el trabajo de envío en la ventana
-		void resume(Frame * frame);	// Retoma el trabajo de recepción en la ventana
-
 };
 
 #endif /* MOVINGWINDOW_H_ */

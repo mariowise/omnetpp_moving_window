@@ -26,6 +26,8 @@
 #include <vector>
 #include <queue>
 
+#include <stdlib.h>
+#include <time.h>
 
 #include "Control.h"
 #include "Frame.h"

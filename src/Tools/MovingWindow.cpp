@@ -25,6 +25,7 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 	HowToWaitCount = HowToWait;			// Inicialmente no he enviado nada
 	FrameCounter = 1;
 	FramePushCounter = 1;
+	srand(time(NULL));
 
 	if(role.compare("emisor") == 0) {
 		// Se realiza la población de la ventana hasta WindowLength o lo que haya en MessageQueue
@@ -112,16 +113,18 @@ void MovingWindow::broker(Frame * frame) {
 	} else if(frame->ctrl->type.compare("Informacion") == 0) {
 		// Estoy recibiendo una trama de información
 		int nroTrama = s2i(frame->ctrl->dataB);
-		cout << "Terminal" << s2i(host) << ": recibe trama de Informacion" << endl;
+		cout << "Terminal" << s2i(host) << ": recibe trama de Informacion desde Terminal" << s2i(frame->address) << endl;
 		cout << "\t|->nroTrama=" << nroTrama << " (" << frame->ctrl->dataB << ")" << endl;
 		cout << "\t|->SpectedFrame=" << SpectedFrame << endl << endl;		
 		if(nroTrama == SpectedFrame) {
+			
+			if(!acquire(frame)) // Intento incorporar la trama, si no puedo envio el NACK y no continúa
+				goto nackTrama;	// Salida de la función
+			
 			// Si recibo lo que estoy esperando no hay problemas
 			HowToWaitCount--;
 			SpectedFrame = (SpectedFrame + 1) % WindowLength;
 
-			if(!acquire(frame)) // Intento incorporar la trama, si no puedo envio el NACK y no continúa
-				goto nackTrama;	// Salida de la función
 
 			// Si ya recibi toda la ventana
 			if(HowToWaitCount == 0) {
@@ -174,6 +177,7 @@ void MovingWindow::broker(Frame * frame) {
 		} else if(type == 2) { // Se trata de un NACK
 			// Un NACK en cualquier caso significa que el lote no fue recepcionado en su totalidad
 			// por lo tanto se repite el reenvío del lote.
+			FrameCounter -= HowToWait;
 			HowToWaitCount = HowToWait;
 			FramePointer = (WindowLength + FramePointer - HowToWait) % WindowLength;
 			cout << "Terminal" << s2i(host) << ": reenviando lote debido NACK" << endl << endl;
@@ -265,19 +269,20 @@ void MovingWindow::sendNACK(string to, int nro) {
 
 bool MovingWindow::acquire(Frame * frame) {
 	cout << "Terminal" << s2i(host) << ": revisando CRC y apilando la trama " << FrameCounter << " ";
-	if(frame->isValid()) {
+	int ranError = rand()%100;
+	if(frame->isValid() && (ranError > 25)) {
 		cout << "[OK]" << endl << endl;		// Escribo la respuesta en la consola
 		MessageQueue->push(frame->data);	// Apilo la trama en la cola mensaje
 		if(frame->ctrl->pollFinal) {
 			cout << "#######################################################" << endl;
-			cout << "Terminal" << s2i(host) << ": declara haber recibido todas sus tramas (" << (int) MessageQueue->size() << ")" << endl;
+			cout << "Terminal" << s2i(host) << ": declara haber recibido todas sus tramas (" << (int) MessageQueue->size() << ") desde Terminal" << s2i(frame->address) << endl;
 			cout << "#######################################################" << endl;
 			sendACK(frame->address, s2i(frame->ctrl->dataB));
 		}
 		FrameCounter++;
 		return true;
 	} else { 
-		cout << "[Not-Valid!]" << endl << endl;		// Escribo la respuesta en la consola
+		cout << "[Not-Valid!] Error: " << ranError << endl << endl;		// Escribo la respuesta en la consola
 		return false;
 	}
 	cout << endl;

@@ -276,7 +276,7 @@ bool MovingWindow::acquire(Frame * frame) {
 	int ranError = rand()%100;
 
 	if(!locker)         // Si ya estoy bloqueado por rechazar una trama
-	    ranError = 26;  // No la estropeo cuando ahora me llega buena
+	    ranError = 25;  // No la estropeo cuando ahora me llega buena
 
 	if(frame->isValid() && (ranError > 25)) {
 		cout << "[OK]" << endl << endl;		// Escribo la respuesta en la consola

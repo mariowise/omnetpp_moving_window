@@ -44,6 +44,7 @@ class MovingWindow {
 		int SpectedFrame;			// Trama que estoy esperando
 		int FramePointer;			// Cabezal sobre el vector Window
 		int TokenLimit;				// Cuantas tramas enviar antes de ceder el token
+		bool locker;                // Bloquea la recepción hasta que se reciba lo que estoy esperando
 
 		int PieceLength;			// Largo del los pedacitos en que se corte el mensaje
 		int WindowLength;			// Largo de la ventana deslizante

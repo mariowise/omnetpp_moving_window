@@ -29,9 +29,9 @@ O = $(PROJECT_OUTPUT_DIR)/$(CONFIGNAME)/$(PROJECTRELATIVE_PATH)
 
 # Object files for local .cpp and .msg files
 OBJS = \
-    $O/src/Terminal/Application.o \
-    $O/src/Terminal/Link.o \
     $O/src/Terminal/Middle.o \
+    $O/src/Terminal/Link.o \
+    $O/src/Terminal/Application.o \
     $O/src/Tools/MovingWindow.o \
     $O/src/Tools/HDLC/Control.o \
     $O/src/Tools/HDLC/Frame.o

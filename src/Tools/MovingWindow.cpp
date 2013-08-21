@@ -25,6 +25,7 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 	HowToWaitCount = HowToWait;			// Inicialmente no he enviado nada
 	FrameCounter = 1;
 	FramePushCounter = 1;
+	locker = true;
 	srand(time(NULL));
 
 	if(role.compare("emisor") == 0) {
@@ -54,7 +55,7 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 		state = "recibiendo";			// Seteo el estado como recibiendo
 		MessageQueue = new queue<string>();		// Se crea la cola mensajes
 	}
-	else 
+	else
 		cout << "#Error MovingWindow::MovingWindow(...) se ha construido con un rol inválido <" << role << ">" << endl;
 }
 
@@ -115,12 +116,12 @@ void MovingWindow::broker(Frame * frame) {
 		int nroTrama = s2i(frame->ctrl->dataB);
 		cout << "Terminal" << s2i(host) << ": recibe trama de Informacion desde Terminal" << s2i(frame->address) << endl;
 		cout << "\t|->nroTrama=" << nroTrama << " (" << frame->ctrl->dataB << ")" << endl;
-		cout << "\t|->SpectedFrame=" << SpectedFrame << endl << endl;		
+		cout << "\t|->SpectedFrame=" << SpectedFrame << endl << endl;
 		if(nroTrama == SpectedFrame) {
-			
+
 			if(!acquire(frame)) // Intento incorporar la trama, si no puedo envio el NACK y no continúa
 				goto nackTrama;	// Salida de la función
-			
+
 			// Si recibo lo que estoy esperando no hay problemas
 			HowToWaitCount--;
 			SpectedFrame = (SpectedFrame + 1) % WindowLength;
@@ -137,15 +138,18 @@ void MovingWindow::broker(Frame * frame) {
 		} else {
 			// Si no es la trama que estoy esperando simplemente envio un NACK pidiendo lo que espero
 			nackTrama:
-			sendNACK(frame->address, SpectedFrame);
-			module->getParentModule()->bubble("Enviando NACK");
+			if(locker) {
+			    locker = false;
+                sendNACK(frame->address, SpectedFrame);
+                module->getParentModule()->bubble("Enviando NACK");
+			}
 		}
 	} else if(frame->ctrl->type.compare("Supervisora") == 0) {
 		// Estoy recibiendo una trama supervisora
 		int type = s2i(frame->ctrl->dataA);
 		int nro = s2i(frame->ctrl->dataB);
 		if(type == 1) { // Se trata de un ACK
-			// Es necesario reemplazar todos los elementos distintos del ACK hasta encontrar la trama que 
+			// Es necesario reemplazar todos los elementos distintos del ACK hasta encontrar la trama que
 			// fue indicada como ACK, luego esa trama tambien hay que reemplazarla.
 			cout << "Terminal" << s2i(host) << ": Recibe trama supervisora ACK-" << nro << endl;
 			int i, j;
@@ -187,7 +191,7 @@ void MovingWindow::broker(Frame * frame) {
 }
 
 void MovingWindow::resume() {
-	// A estas alturas se tiene HowToWaitCount como el número de tramas que 
+	// A estas alturas se tiene HowToWaitCount como el número de tramas que
 	// aun queda por enviar por lo tanto se realizará el envio de esa cantidad
 	// de tramas. Pero no se deben enviar mas de module->TokenWait tramas
 	cout << "Terminal" << s2i(host) << ": continua el envío" << endl;
@@ -270,6 +274,10 @@ void MovingWindow::sendNACK(string to, int nro) {
 bool MovingWindow::acquire(Frame * frame) {
 	cout << "Terminal" << s2i(host) << ": revisando CRC y apilando la trama " << FrameCounter << " ";
 	int ranError = rand()%100;
+
+	if(!locker)         // Si ya estoy bloqueado por rechazar una trama
+	    ranError = 26;  // No la estropeo cuando ahora me llega buena
+
 	if(frame->isValid() && (ranError > 25)) {
 		cout << "[OK]" << endl << endl;		// Escribo la respuesta en la consola
 		MessageQueue->push(frame->data);	// Apilo la trama en la cola mensaje
@@ -280,8 +288,9 @@ bool MovingWindow::acquire(Frame * frame) {
 			sendACK(frame->address, s2i(frame->ctrl->dataB));
 		}
 		FrameCounter++;
+		locker = true;
 		return true;
-	} else { 
+	} else {
 		cout << "[Not-Valid!] Error: " << ranError << endl << endl;		// Escribo la respuesta en la consola
 		return false;
 	}

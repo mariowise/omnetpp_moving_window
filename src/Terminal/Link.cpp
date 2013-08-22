@@ -55,9 +55,10 @@ void Link::handleMessage(cMessage * msg) {
         Frame * frame = new Frame(msg->getName());
 
         // Se revisa si es que el mensaje es para mi (este terminal)
-        if (this->address.compare(frame->addressee) != 0) 
+        if (this->address.compare(frame->addressee) != 0) {
+            ev << endl;
             send(msg, "to_net"); // Envia el mensaje a la red nuevamente
-        else { // El mensaje si es para mi
+        } else { // El mensaje si es para mi
             // Es necesario verificar si tengo una ventana dezlizante en mi arreglo asociativo
             // para procesar la trama que ha llegado. Sino es necesario crearla y pasarsela
             if(WindowMap->find(frame->address) != WindowMap->end()) { // Si existe la llave

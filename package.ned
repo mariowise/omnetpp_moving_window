@@ -26,6 +26,7 @@ simple Link
         int WindowLength;
         int HowToWait;
         int nPieces;
+        int pError;
     gates:
         input from_middle;
         input from_net;
@@ -39,6 +40,7 @@ module Terminal
         int nPieces;
         int WindowLength;
         int HowToWait;
+        int pError;
     @display("bgb=333,106");
     gates:
         input in;
@@ -57,6 +59,7 @@ module Terminal
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
                 nPieces = nPieces;
+                pError = pError;
             @display("p=53,45;i=block/sink");
         }
     connections:
@@ -71,9 +74,10 @@ module Terminal
 network Network
 {
     parameters:
-        int nPieces @prompt ("Indique el número de tramas para el servidor: ");
+        int nPieces @prompt ("Indique el nÃºmero de tramas para el servidor: ");
         int WindowLength @prompt ("Indique el largo de la ventana deslizante: ");   
         int HowToWait @prompt ("Indique cuantas tramas se deben enviar antes de esperar un ACK: ");
+        int pError @prompt("Indique la probabilidad de error para la simulación, 0-100: ");
     @display("bgb=333,279");
     types:
     submodules:
@@ -82,6 +86,7 @@ network Network
                 nPieces = nPieces;
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
+                pError = pError;
             @display("p=65,117;i=device/server2");
         }
         Terminal1: Terminal {
@@ -89,6 +94,7 @@ network Network
                 nPieces = nPieces;
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
+                pError = pError;
             @display("p=162,44;i=device/pc");
         }
         Terminal2: Terminal {
@@ -96,6 +102,7 @@ network Network
                 nPieces = nPieces;
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
+                pError = pError;
             @display("p=258,117;i=device/pc");
         }
         Terminal3: Terminal {
@@ -103,6 +110,7 @@ network Network
                 nPieces = nPieces;
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
+                pError = pError;
             @display("p=219,217;i=device/pc");
         }
         Terminal4: Terminal {
@@ -110,6 +118,7 @@ network Network
                 nPieces = nPieces;
                 WindowLength = WindowLength;
                 HowToWait = HowToWait;
+                pError = pError;
             @display("p=104,217;i=device/pc");
         }
     connections:

@@ -45,6 +45,8 @@ class MovingWindow {
 		int FramePointer;			// Cabezal sobre el vector Window
 		int TokenLimit;				// Cuantas tramas enviar antes de ceder el token
 		bool locker;                // Bloquea la recepción hasta que se reciba lo que estoy esperando
+		int pError;                 // Probabilidad de error
+		int holder;                 // Ayuda a mantener la circularidad de la ventana
 
 		int PieceLength;			// Largo del los pedacitos en que se corte el mensaje
 		int WindowLength;			// Largo de la ventana deslizante
@@ -68,6 +70,9 @@ class MovingWindow {
 		);
 		void replace(int pos);		// Llena espacios de la ventana con elementos del messageQueue
 		bool acquire(Frame * frame);// Adquiere la trama que esta llegando, aplica CRC y decide
+		void error(
+            string * dataField
+        );
 
 	public:
 		queue<string> * MessageQueue;	// Cola de pedazos de mensaje a enviar

@@ -26,13 +26,14 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 	FrameCounter = 1;
 	FramePushCounter = 1;
 	locker = true;
+	holder = 0;
 	srand(time(NULL));
 
 	if(role.compare("emisor") == 0) {
 		// Se realiza la población de la ventana hasta WindowLength o lo que haya en MessageQueue
 		FrameCount = (int) MessageQueue->size();
 		int i;
-		for(i = 0; i < (int) MessageQueue->size() && i < WindowLength; i++) {
+		for(i = 0; 0 < (int) MessageQueue->size() && i < WindowLength; i++) {
 			Window->push_back(new Frame(
 				host,						// Dirección del emisor
 				i2s(0),						// Dirección del receptor
@@ -57,6 +58,8 @@ MovingWindow::MovingWindow(string _host, string _role, queue<string> * _mq, cSim
 	}
 	else
 		cout << "#Error MovingWindow::MovingWindow(...) se ha construido con un rol inválido <" << role << ">" << endl;
+
+	pError = module->getParentModule()->par("pError");
 }
 
 void MovingWindow::begin() {
@@ -152,8 +155,10 @@ void MovingWindow::broker(Frame * frame) {
 			// Es necesario reemplazar todos los elementos distintos del ACK hasta encontrar la trama que
 			// fue indicada como ACK, luego esa trama tambien hay que reemplazarla.
 			cout << "Terminal" << s2i(host) << ": Recibe trama supervisora ACK-" << nro << endl;
-			int i, j;
-			for(i = 0; i < FramePointer && FramePushCounter <= FrameCount; i++) {
+			int i = holder, j;
+			// while(i < FramePointer && FramePushCounter <= FrameCount) {
+			while(FramePushCounter <= FrameCount) {
+			// for(i = holder; i < FramePointer && FramePushCounter <= FrameCount; i++) {
 				j = s2i(Window->at(i)->ctrl->dataB);
 				free((*Window)[i]);	// Se libera el puntero al que apunta la posición del vector
 				(*Window)[i] = new Frame(
@@ -167,13 +172,21 @@ void MovingWindow::broker(Frame * frame) {
 					),
 					MessageQueue->front()		// Data
 				);
-				cout << "\t|->Agregando a la ventana a la trama Nro." << FramePushCounter << "/" << FrameCount << endl;
+				cout << "\t|->Agregando a la ventana a la trama Nro." << FramePushCounter << "/" << FrameCount << " en posicion " << i << " holder=" << holder << endl;
 				FramePushCounter++;
 				MessageQueue->pop();		// Lo quito de la cola de Message
 				if(nro == j) // Si es la trama que me hacen ACK
 					break; // No itero mas
+
+				i = (i+1) % WindowLength;
 			}
+			if(FramePushCounter > FrameCount)
+			    cout << "\t|->Todas las tramas han sido agregadas" << endl;
+			else
+			    holder = (i + 1) % WindowLength;
+
 			cout << endl;
+
 			// Si el nro del ACK que ha llegado es igual a FramePointer-1 entonces el lote ha sido recibido
 			// de forma satisfactoria. Por lo tanto es necesario pasar el token al siguiente terminal.
 			HowToWaitCount = HowToWait;
@@ -194,12 +207,13 @@ void MovingWindow::resume() {
 	// A estas alturas se tiene HowToWaitCount como el número de tramas que
 	// aun queda por enviar por lo tanto se realizará el envio de esa cantidad
 	// de tramas. Pero no se deben enviar mas de module->TokenWait tramas
-	cout << "Terminal" << s2i(host) << ": continua el envío" << endl;
-	cout << "\t|->HowToWait=" << HowToWaitCount << endl;
-	cout << "\t|->Window->size()=" << (int) Window->size() << endl;
-	state = "enviando";
-	while(HowToWaitCount > 0 && FrameCounter <= FrameCount) {
-		cout << "\t|->enviando trama nro. " << FrameCounter << endl;
+    cout << "Terminal" << s2i(host) << ": continua el envío" << endl;
+    cout << "\t|->HowToWait=" << HowToWaitCount << endl;
+    cout << "\t|->Window->size()=" << (int) Window->size() << endl;
+    state = "enviando";
+    while(HowToWaitCount > 0 && FrameCounter <= FrameCount) {
+
+		cout << "\t|->enviando trama nro. " << FrameCounter << " ptr=" << FramePointer << endl;
 
 		if(FrameCounter == FrameCount) { // Es la última trama del mensaje
 			Window->at(FramePointer)->ctrl->pollFinal = true; // Se fija como final
@@ -273,12 +287,11 @@ void MovingWindow::sendNACK(string to, int nro) {
 
 bool MovingWindow::acquire(Frame * frame) {
 	cout << "Terminal" << s2i(host) << ": revisando CRC y apilando la trama " << FrameCounter << " ";
-	int ranError = rand()%100;
 
-	if(!locker)         // Si ya estoy bloqueado por rechazar una trama
-	    ranError = 25;  // No la estropeo cuando ahora me llega buena
+	if(locker)                  // Si aun no he generado un error
+	    error(&(frame->data));    // Genero un error para que se caiga el CRC mediante ->isValid() = false
 
-	if(frame->isValid() && (ranError > 25)) {
+	if(frame->isValid()) {
 		cout << "[OK]" << endl << endl;		// Escribo la respuesta en la consola
 		MessageQueue->push(frame->data);	// Apilo la trama en la cola mensaje
 		if(frame->ctrl->pollFinal) {
@@ -291,8 +304,18 @@ bool MovingWindow::acquire(Frame * frame) {
 		locker = true;
 		return true;
 	} else {
-		cout << "[Not-Valid!] Error: " << ranError << endl << endl;		// Escribo la respuesta en la consola
+		cout << "[Not-Valid!] Error: " << endl << endl;		// Escribo la respuesta en la consola
 		return false;
 	}
 	cout << endl;
+}
+
+void MovingWindow::error (string * dataField) {
+    int bet = rand() % 100+1;
+    if( bet < pError) {
+        bet = rand() % 8;
+        if (dataField->at(bet) == '0') dataField->replace(bet, 1, "1");
+        else dataField->replace(bet, 1, "0");
+        cout << *dataField << endl;
+    }
 }

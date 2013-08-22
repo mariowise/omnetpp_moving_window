@@ -124,7 +124,7 @@ bool Frame::isValid() {
     }
 
     // Finalmente se comprueba si el resto de la división es 0.
-    for (int i = 0; i < (int)mxxn.length(); i++) if(mxxn.at(i)== 1) isValid = false;
+    for (int i = 0; i < (int)mxxn.length(); i++) if(mxxn.at(i)== '1') isValid = false;
 
     return isValid;
 }
